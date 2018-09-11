@@ -1,3 +1,7 @@
+/*
+ * Configured for SODAQ ONE board 
+ */
+
 #include <TheThingsNetwork.h>
 
 // Set your DevAddr, NwkSKey, AppSKey and the frequency plan

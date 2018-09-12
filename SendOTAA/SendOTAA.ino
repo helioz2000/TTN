@@ -3,6 +3,11 @@
  *  
  */
 
+/* 
+ *  Configured for SODAQ ONE board
+ *  
+ */
+
 #include <TheThingsNetwork.h>
 
 // Set your AppEUI and AppKey

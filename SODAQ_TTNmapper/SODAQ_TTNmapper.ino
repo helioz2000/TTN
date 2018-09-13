@@ -25,18 +25,30 @@ uint32_t LatitudeBinary, LongitudeBinary;
 uint16_t altitudeGps;
 uint8_t hdopGps;
 
+// Non volatile storage on RN2903, used as EEPROM in this program.
+const uint16_t NVM_START_ADDR = 0x300;
+const uint16_t NVM_END_ADDR = 0x3FF;
+
 #define loraSerial Serial1
 #define debugSerial SerialUSB
 
 // Replace REPLACE_ME with TTN_FP_EU868 or TTN_FP_US915
 #define freqPlan TTN_FP_AU915
 
+// persistent storage
+struct storageParams {
+    uint32_t dnctr;    // downlink frame counter
+    uint32_t upctr;    // uplink frame counter
+    } nvmStorage;
+
 TheThingsNetwork ttn(loraSerial, debugSerial, freqPlan);
+//FlashStorage(flash, storageParams);
 
 bool gotGPSfix = false;
 int led_pin;
 void setup()
 {
+  char buf[50];
   loraSerial.begin(57600);
   debugSerial.begin(9600);
 
@@ -58,8 +70,16 @@ void setup()
   debugSerial.println("-- STATUS");
   ttn.showStatus();
 
+  nvmStorage.dnctr =54896;
+  nvmStorage.upctr = 4096;
+
+  writeNvm();
+
+  readNvm();
+  
   debugSerial.print("-- Waiting for GPS fix ... ");
   sodaq_gps.init(GPS_ENABLE);
+
 
   digitalWrite(LED_RED, LOW);
   if (sodaq_gps.scan(true, 60000)) {
@@ -71,6 +91,54 @@ void setup()
   }
   digitalWrite(LED_RED, HIGH);
 
+}
+
+void writeNvm() {
+  const byte *ptr = (const byte*) &nvmStorage;
+  const int data_size = sizeof(nvmStorage);
+  int address, x, value;
+  String cmd;
+  char buf[50];
+
+  debugSerial.println("\n -- NVM write\n");
+  for (x = 0; x<data_size; x++) {
+    address = 0x300 + x;
+    cmd = String(address, HEX) + String(" ") + String(ptr[x], HEX);
+    cmd.toUpperCase();
+    cmd = String("sys set nvm ") + cmd;
+    debugSerial.println(cmd);
+    loraSerial.println(cmd);
+    loraSerial.readBytesUntil('\n', buf, 50);
+  }  
+  
+}
+
+void readNvm() {
+  int i,x, n, m, rdlen;
+  String cmd;
+  char buf[50];
+  byte *ptr = (byte*) &nvmStorage;
+  const int data_size = sizeof(nvmStorage);
+  debugSerial.println("\n -- NVM \n");
+  for (x = 0; x<data_size; x++) {
+    cmd = String(x + NVM_START_ADDR, HEX);
+    cmd.toUpperCase();
+    cmd = String("sys get nvm ") + cmd;
+    loraSerial.println(cmd);
+    rdlen = loraSerial.readBytesUntil('\n', buf, 50);
+    debugSerial.println(cmd + String(" - ") + String(buf));
+    // convert hex string to number
+    n = 0; m = 1;
+    for (i = rdlen - 2; i >= 0; i--) {
+      if (buf[i] >= 'A') {
+        n = n + ((buf[i]-'@' + 9) * m);
+      } else {
+        n = n + ((buf[i]-'0') * m);
+      }
+      m = m * 16;
+    }
+    ptr[x] = n;   
+  }
 }
 
 void buildTXbuffer() {
@@ -95,7 +163,9 @@ void buildTXbuffer() {
 }
 
 void update(void) {
-  digitalWrite(LED_BLUE, LOW);
+  if (gotGPSfix) {
+    digitalWrite(LED_BLUE, LOW);
+  }
   if (sodaq_gps.scan(true, 2000)) {
         payload = sodaq_gps.getDateTimeString() + ";";
         payload += String(sodaq_gps.getLat(), 7) + ";";

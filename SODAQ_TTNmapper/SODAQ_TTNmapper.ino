@@ -58,6 +58,8 @@ struct storageParams {
 
 #define FRAME_CTR_UPDATE 10
 
+#define SEND_WHEN_STATIONARY true
+
 TheThingsNetwork ttn(loraSerial, debugSerial, freqPlan);
 
 bool gotGPSfix = false;
@@ -185,12 +187,12 @@ void check_frame_ctr() {
     rdlen = loraSerial.readBytesUntil('\n', buf, BUFLEN);
     String result = buf;
     long frame_upctr = result.toInt();
-
+    debugSerial.println(String("Uplink Frame Counter = ") + result );
     // Check if we need to update persisitent copy
     if (frame_upctr >= nvmStorage.upctr) {
         nvmStorage.upctr = frame_upctr + FRAME_CTR_UPDATE;
         writeNvm();
-        //debugSerial.println(String("upctr = ") + String(nvmStorage.upctr) );
+        debugSerial.println(String("frame_upctr = ") + String(nvmStorage.upctr) );
     }
    
 }
@@ -234,13 +236,12 @@ void update(bool force) {
     digitalWrite(LED_BLUE, LOW);
   }
   if (sodaq_gps.scan(true, 2000)) {
-        payload = sodaq_gps.getDateTimeString() + ";";
-        payload += String(sodaq_gps.getLat(), 7) + ";";
-        payload += String(sodaq_gps.getLon(), 7) + ";";
-        payload += String(sodaq_gps.getHDOP(), 3) + ";";
-        payload += String(sodaq_gps.getNumberOfSatellites()) + ";#";
-        velocity = sodaq_gps.getSpeed();
-        
+        //payload = sodaq_gps.getDateTimeString() + ";";
+        //payload += String(sodaq_gps.getLat(), 7) + ";";
+        //payload += String(sodaq_gps.getLon(), 7) + ";";
+        //payload += String(sodaq_gps.getHDOP(), 3) + ";";
+        //payload += String(sodaq_gps.getNumberOfSatellites()) + ";#";
+        velocity = sodaq_gps.getSpeed();      
 
         // don't send unless we are moving
         if ( (velocity > 1.0) || force ) {
@@ -262,7 +263,7 @@ void update(bool force) {
 void loop()
 {
   if (millis() > next_update) {
-    update(false);
+    update(SEND_WHEN_STATIONARY);
     next_update = millis() + UPDATE_INTERVAL;
   }
 

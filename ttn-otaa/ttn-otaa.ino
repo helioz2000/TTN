@@ -33,15 +33,6 @@
 #include <hal/hal.h>
 #include <SPI.h>
 
-/*
- * Application eb
- * Application EUI: 70 B3 D5 7E D0 01 23 56
- * Device ID: uno-sx1276-test
- * Device EUI: 01 F7 00 00 00 00 00 01
- * App Key: A9 59 B0 7E 04 51 A3 70 27 1B 68 C3 D8 A6 36 0D
- * 
- */
-
 // This EUI must be in little-endian format, so least-significant-byte
 // first. When copying an EUI from ttnctl output, this means to reverse
 // the bytes. For TTN issued EUIs the last bytes should be 0xD5, 0xB3,
@@ -57,7 +48,7 @@ void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 // number but a block of memory, endianness does not really apply). In
 // practice, a key taken from ttnctl can be copied as-is.
 // The key shown here is the semtech default key.
-static const u1_t PROGMEM APPKEY[16] = { 0xA0, 0x21, 0x4C, 0x64, 0x52, 0x2E, 0xB2, 0x2A, 0xEE, 0xE2, 0x55, 0xDA, 0xA5, 0x60, 0x77, 0x4A };
+static const u1_t PROGMEM APPKEY[16] = { 0x68, 0x44, 0x13, 0x78, 0xAC, 0x81, 0x19, 0xE9, 0xAE, 0x56, 0x28, 0x1C, 0x03, 0xFA, 0x79, 0xBD };
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
 static uint8_t mydata[] = "Hello, eb world";

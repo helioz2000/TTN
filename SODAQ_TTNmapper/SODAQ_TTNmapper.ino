@@ -1,5 +1,17 @@
 /*
  * Configured for SODAQ ONE board 
+ * 
+ * Transmit location data for TTN mapper.
+ * 
+ * Data is either transmitted by button or when moving
+ * 
+ * ABP frame counter:
+ * A copy of the frame counter is stored NVM on the RN2903 module.
+ * The stored copy is incremented by 10 whenever the transmiited frame
+ * counter reached the stored value. This will cut down on NVM storage 
+ * operations whilst generating a maximum delta of 10 between two
+ * transmitted frames, that is, the last frame before shutdown and 
+ * first frame after startup.
  */
 #include <Arduino.h>
 #include <Sodaq_UBlox_GPS.h>
@@ -19,6 +31,9 @@ const char *appSKey = "628979BA757DA7ED841BCAB966A500B9";
 unsigned long next_update = 0;
 
 String payload;
+
+#define BUFLEN 50
+char buf[BUFLEN];
 
 uint8_t txBuffer[9];
 uint32_t LatitudeBinary, LongitudeBinary;
@@ -41,8 +56,9 @@ struct storageParams {
     uint32_t upctr;    // uplink frame counter
     } nvmStorage;
 
+#define FRAME_CTR_UPDATE 10
+
 TheThingsNetwork ttn(loraSerial, debugSerial, freqPlan);
-//FlashStorage(flash, storageParams);
 
 bool gotGPSfix = false;
 int led_pin;
@@ -70,13 +86,20 @@ void setup()
   debugSerial.println("-- STATUS");
   ttn.showStatus();
 
-  nvmStorage.dnctr =54896;
-  nvmStorage.upctr = 4096;
+  nvmStorage.dnctr = 0;
+  nvmStorage.upctr = 0;
 
-  writeNvm();
+  if (!readNvm()) {   // first ever read (blank) will return false
+    nvmStorage.dnctr = 0; // we need to override the values as they are invalid
+    nvmStorage.upctr = 0;
+    check_frame_ctr();
+  } else {
+    set_frame_ctr();  // set in LoRaWAN stack
+    debugSerial.println(String("Uplink Frame Counter: ") + String(nvmStorage.upctr));
+    //nvmStorage.upctr += FRAME_CTR_UPDATE;
+    //writeNvm();
+  }
 
-  readNvm();
-  
   debugSerial.print("-- Waiting for GPS fix ... ");
   sodaq_gps.init(GPS_ENABLE);
 
@@ -98,35 +121,40 @@ void writeNvm() {
   const int data_size = sizeof(nvmStorage);
   int address, x, value;
   String cmd;
-  char buf[50];
 
-  debugSerial.println("\n -- NVM write\n");
+  //debugSerial.println("\n -- NVM write\n");
   for (x = 0; x<data_size; x++) {
     address = 0x300 + x;
     cmd = String(address, HEX) + String(" ") + String(ptr[x], HEX);
+    //cmd = String(address, HEX) + String(" ") + String(0xFF, HEX);
     cmd.toUpperCase();
     cmd = String("sys set nvm ") + cmd;
-    debugSerial.println(cmd);
+    //debugSerial.println(cmd);
     loraSerial.println(cmd);
     loraSerial.readBytesUntil('\n', buf, 50);
   }  
   
 }
 
-void readNvm() {
+
+// read data from NV memory into storage
+// returns false on first ever read (data is all 0xFF)
+bool readNvm() {
   int i,x, n, m, rdlen;
+  bool retval = false;
   String cmd;
-  char buf[50];
+
   byte *ptr = (byte*) &nvmStorage;
   const int data_size = sizeof(nvmStorage);
-  debugSerial.println("\n -- NVM \n");
+  
   for (x = 0; x<data_size; x++) {
     cmd = String(x + NVM_START_ADDR, HEX);
     cmd.toUpperCase();
     cmd = String("sys get nvm ") + cmd;
     loraSerial.println(cmd);
-    rdlen = loraSerial.readBytesUntil('\n', buf, 50);
-    debugSerial.println(cmd + String(" - ") + String(buf));
+    rdlen = loraSerial.readBytesUntil('\n', buf, BUFLEN);
+    //debugSerial.println(cmd + String(" - ") + String(buf));
+    
     // convert hex string to number
     n = 0; m = 1;
     for (i = rdlen - 2; i >= 0; i--) {
@@ -137,8 +165,44 @@ void readNvm() {
       }
       m = m * 16;
     }
-    ptr[x] = n;   
+
+    // Store 
+    ptr[x] = n;
+    // detect blank record (first time use)
+    if (n != 0xFF) retval = true;   
   }
+  return retval;
+}
+
+// keep a copy of frame counter in permanent storage
+// to restore on a restart 
+void check_frame_ctr() {
+    int rdlen;
+
+    // Get uplink frame counter from LoRaWAN stack
+    String cmd = "mac get upctr";
+    loraSerial.println(cmd);
+    rdlen = loraSerial.readBytesUntil('\n', buf, BUFLEN);
+    String result = buf;
+    long frame_upctr = result.toInt();
+
+    // Check if we need to update persisitent copy
+    if (frame_upctr >= nvmStorage.upctr) {
+        nvmStorage.upctr = frame_upctr + FRAME_CTR_UPDATE;
+        writeNvm();
+        //debugSerial.println(String("upctr = ") + String(nvmStorage.upctr) );
+    }
+   
+}
+
+// set the frame counter value in LoRaWAN stack
+void set_frame_ctr() {
+    String cmd = "mac set upctr ";
+    cmd += String(nvmStorage.upctr);
+    loraSerial.println(cmd);
+    loraSerial.readBytesUntil('\n', buf, BUFLEN);
+    //debugSerial.println(String("uplink frame counter = ") + String(nvmStorage.upctr) );
+
 }
 
 void buildTXbuffer() {
@@ -162,7 +226,10 @@ void buildTXbuffer() {
 
 }
 
-void update(void) {
+
+// transmit update if moving or if force is true
+void update(bool force) {
+  double velocity;
   if (gotGPSfix) {
     digitalWrite(LED_BLUE, LOW);
   }
@@ -172,30 +239,36 @@ void update(void) {
         payload += String(sodaq_gps.getLon(), 7) + ";";
         payload += String(sodaq_gps.getHDOP(), 3) + ";";
         payload += String(sodaq_gps.getNumberOfSatellites()) + ";#";
-        buildTXbuffer();
-        ttn.sendBytes( txBuffer, sizeof(txBuffer) );
+        velocity = sodaq_gps.getSpeed();
+        
+
+        // don't send unless we are moving
+        if ( (velocity > 1.0) || force ) {
+            buildTXbuffer();
+            ttn.sendBytes( txBuffer, sizeof(txBuffer) );
+            check_frame_ctr();
+        } else {
+            debugSerial.println(String("velocity = ") + String(velocity) + String(" (not moving) not transmitting data") );
+        }
         gotGPSfix = true;
     } else {
         gotGPSfix = false;
         payload = "#";
     }
     
-    //ttn.sendBytes((const byte*)payload.c_str(), payload.length());
     digitalWrite(LED_BLUE, HIGH);
 }
 
 void loop()
 {
-  //debugSerial.println("-- LOOP");
-
   if (millis() > next_update) {
-    update();
+    update(false);
     next_update = millis() + UPDATE_INTERVAL;
   }
 
   // send when button is pressed
   if (digitalRead(BUTTON) == LOW) {
-    update();
+    update(true);
   }
 
     if (gotGPSfix) {

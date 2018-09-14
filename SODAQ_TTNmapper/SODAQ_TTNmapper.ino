@@ -58,7 +58,7 @@ struct storageParams {
 
 #define FRAME_CTR_UPDATE 10
 
-#define SEND_WHEN_STATIONARY true
+#define SEND_WHEN_STATIONARY false
 
 TheThingsNetwork ttn(loraSerial, debugSerial, freqPlan);
 
@@ -247,6 +247,7 @@ void update(bool force) {
         if ( (velocity > 1.0) || force ) {
             buildTXbuffer();
             ttn.sendBytes( txBuffer, sizeof(txBuffer) );
+            //debugSerial.println(String("velocity = ") + String(velocity) );
             check_frame_ctr();
         } else {
             debugSerial.println(String("velocity = ") + String(velocity) + String(" (not moving) not transmitting data") );

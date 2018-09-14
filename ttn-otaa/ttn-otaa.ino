@@ -1,3 +1,7 @@
+/*
+ * For Arduino Uno/Mega boards
+ */
+
 /*******************************************************************************
  * Copyright (c) 2015 Thomas Telkamp and Matthijs Kooijman
  *
@@ -48,7 +52,7 @@ void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 // number but a block of memory, endianness does not really apply). In
 // practice, a key taken from ttnctl can be copied as-is.
 // The key shown here is the semtech default key.
-static const u1_t PROGMEM APPKEY[16] = { 0x68, 0x44, 0x13, 0x78, 0xAC, 0x81, 0x19, 0xE9, 0xAE, 0x56, 0x28, 0x1C, 0x03, 0xFA, 0x79, 0xBD };
+static const u1_t PROGMEM APPKEY[16] = { 0x3F, 0x70, 0xFE, 0x2B, 0x37, 0x96, 0xF2, 0x45, 0x6F, 0x48, 0x15, 0xE7, 0xB2, 0xEA, 0x73, 0x59 };
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
 static uint8_t mydata[] = "Hello, eb world";
@@ -60,10 +64,16 @@ const unsigned TX_INTERVAL = 60;
 
 // Pin mapping
 const lmic_pinmap lmic_pins = {
+    .nss = 10,
+    .rxtx = LMIC_UNUSED_PIN,
+    .rst = 9,
+    .dio = {2, 6, 7},
+    /*
     .nss = 53,
     .rxtx = LMIC_UNUSED_PIN,
     .rst = 28,
     .dio = {22, 24, 26},
+    */
 };
 
 void onEvent (ev_t ev) {
@@ -163,6 +173,10 @@ void setup() {
     os_init();
     // Reset the MAC state. Session and pending data transfers will be discarded.
     LMIC_reset();
+
+    // Allow for more clock error to widen RX window
+    // Without this code the reply ti the JOIN request gets missed and join fails repeatedly
+    LMIC_setClockError(MAX_CLOCK_ERROR * 1 / 100);
 
     // Start job (sending automatically starts OTAA too)
     do_send(&sendjob);

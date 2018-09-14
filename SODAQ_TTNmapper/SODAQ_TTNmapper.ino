@@ -14,7 +14,7 @@
  * first frame after startup.
  */
 #include <Arduino.h>
-#include <Sodaq_UBlox_GPS.h>
+#include "SodaqUBloxGPS.h"
 #include <TheThingsNetwork.h>
 
 // Set your DevAddr, NwkSKey, AppSKey and the frequency plan
@@ -54,7 +54,7 @@ const uint16_t NVM_END_ADDR = 0x3FF;
 struct storageParams {
     uint32_t dnctr;    // downlink frame counter
     uint32_t upctr;    // uplink frame counter
-    } nvmStorage;
+} nvmStorage;
 
 #define FRAME_CTR_UPDATE 10
 
@@ -62,8 +62,8 @@ struct storageParams {
 
 TheThingsNetwork ttn(loraSerial, debugSerial, freqPlan);
 
-bool gotGPSfix = false;
 int led_pin;
+
 void setup()
 {
   char buf[50];
@@ -78,34 +78,34 @@ void setup()
     pinMode(LED_BLUE, OUTPUT);
     pinMode(BUTTON, INPUT);
 
-  // Wait a maximum of 10s for Serial Monitor
-  while (!debugSerial && millis() < 10000)
-    ;
+    // Wait a maximum of 10s for Serial Monitor
+    while (!debugSerial && millis() < 10000)
+        ;
 
-  debugSerial.println("-- PERSONALIZE");
-  ttn.personalize(devAddr, nwkSKey, appSKey);
+    debugSerial.println("-- PERSONALIZE");
+    ttn.personalize(devAddr, nwkSKey, appSKey);
 
-  debugSerial.println("-- STATUS");
-  ttn.showStatus();
+    debugSerial.println("-- STATUS");
+    ttn.showStatus();
 
-  nvmStorage.dnctr = 0;
-  nvmStorage.upctr = 0;
-
-  if (!readNvm()) {   // first ever read (blank) will return false
-    nvmStorage.dnctr = 0; // we need to override the values as they are invalid
+    nvmStorage.dnctr = 0;
     nvmStorage.upctr = 0;
-    check_frame_ctr();
-  } else {
-    set_frame_ctr();  // set in LoRaWAN stack
-    debugSerial.println(String("Uplink Frame Counter: ") + String(nvmStorage.upctr));
-    //nvmStorage.upctr += FRAME_CTR_UPDATE;
-    //writeNvm();
-  }
 
-  debugSerial.print("-- Waiting for GPS fix ... ");
-  sodaq_gps.init(GPS_ENABLE);
+    if (!readNvm()) {   // first ever read (blank) will return false
+        nvmStorage.dnctr = 0; // we need to override the values as they are invalid
+        nvmStorage.upctr = 0;
+        check_frame_ctr();
+    } else {
+        set_frame_ctr();  // set in LoRaWAN stack
+        debugSerial.println(String("Uplink Frame Counter: ") + String(nvmStorage.upctr));
+        //nvmStorage.upctr += FRAME_CTR_UPDATE;
+        //writeNvm();
+    }
 
-
+    //debugSerial.print("-- Waiting for GPS fix ... ");
+    sodaq_gps.init(GPS_ENABLE);
+    sodaq_gps.on();
+  /*
   digitalWrite(LED_RED, LOW);
   if (sodaq_gps.scan(true, 60000)) {
     debugSerial.println(" Received.");
@@ -115,65 +115,64 @@ void setup()
     gotGPSfix = true;
   }
   digitalWrite(LED_RED, HIGH);
+  */
 
 }
 
 void writeNvm() {
-  const byte *ptr = (const byte*) &nvmStorage;
-  const int data_size = sizeof(nvmStorage);
-  int address, x, value;
-  String cmd;
+    const byte *ptr = (const byte*) &nvmStorage;
+    const int data_size = sizeof(nvmStorage);
+    int address, x, value;
+    String cmd;
 
-  //debugSerial.println("\n -- NVM write\n");
-  for (x = 0; x<data_size; x++) {
-    address = 0x300 + x;
-    cmd = String(address, HEX) + String(" ") + String(ptr[x], HEX);
-    //cmd = String(address, HEX) + String(" ") + String(0xFF, HEX);
-    cmd.toUpperCase();
-    cmd = String("sys set nvm ") + cmd;
-    //debugSerial.println(cmd);
-    loraSerial.println(cmd);
-    loraSerial.readBytesUntil('\n', buf, 50);
-  }  
-  
+    //debugSerial.println("\n -- NVM write\n");
+    for (x = 0; x<data_size; x++) {
+        address = 0x300 + x;
+        cmd = String(address, HEX) + String(" ") + String(ptr[x], HEX);
+        cmd.toUpperCase();
+        cmd = String("sys set nvm ") + cmd;
+        //debugSerial.println(cmd);
+        loraSerial.println(cmd);
+        loraSerial.readBytesUntil('\n', buf, 50);
+    }  
 }
 
 
 // read data from NV memory into storage
 // returns false on first ever read (data is all 0xFF)
 bool readNvm() {
-  int i,x, n, m, rdlen;
-  bool retval = false;
-  String cmd;
+    int i,x, n, m, rdlen;
+    bool retval = false;
+    String cmd;
 
-  byte *ptr = (byte*) &nvmStorage;
-  const int data_size = sizeof(nvmStorage);
+    byte *ptr = (byte*) &nvmStorage;
+    const int data_size = sizeof(nvmStorage);
   
-  for (x = 0; x<data_size; x++) {
-    cmd = String(x + NVM_START_ADDR, HEX);
-    cmd.toUpperCase();
-    cmd = String("sys get nvm ") + cmd;
-    loraSerial.println(cmd);
-    rdlen = loraSerial.readBytesUntil('\n', buf, BUFLEN);
-    //debugSerial.println(cmd + String(" - ") + String(buf));
+    for (x = 0; x<data_size; x++) {
+        cmd = String(x + NVM_START_ADDR, HEX);
+        cmd.toUpperCase();
+        cmd = String("sys get nvm ") + cmd;
+        loraSerial.println(cmd);
+        rdlen = loraSerial.readBytesUntil('\n', buf, BUFLEN);
+        //debugSerial.println(cmd + String(" - ") + String(buf));
     
-    // convert hex string to number
-    n = 0; m = 1;
-    for (i = rdlen - 2; i >= 0; i--) {
-      if (buf[i] >= 'A') {
-        n = n + ((buf[i]-'@' + 9) * m);
-      } else {
-        n = n + ((buf[i]-'0') * m);
-      }
-      m = m * 16;
-    }
+        // convert hex string to number
+        n = 0; m = 1;
+        for (i = rdlen - 2; i >= 0; i--) {
+            if (buf[i] >= 'A') {
+                n = n + ((buf[i]-'@' + 9) * m);
+            } else {
+                n = n + ((buf[i]-'0') * m);
+            }
+            m = m * 16;
+        }
 
-    // Store 
-    ptr[x] = n;
-    // detect blank record (first time use)
-    if (n != 0xFF) retval = true;   
-  }
-  return retval;
+        // Store 
+        ptr[x] = n;
+        // detect blank record (first time use)
+        if (n != 0xFF) retval = true;   
+    }
+    return retval;
 }
 
 // keep a copy of frame counter in permanent storage
@@ -208,76 +207,91 @@ void set_frame_ctr() {
 }
 
 void buildTXbuffer() {
-    LatitudeBinary = ((sodaq_gps.getLat() + 90) / 180) * 16777215;
-    LongitudeBinary = ((sodaq_gps.getLon() + 180) / 360) * 16777215;
-    hdopGps = sodaq_gps.getHDOP()*10;
-    altitudeGps = sodaq_gps.getAlt();
+    if (sodaq_gps.hasFix()) {
+        LatitudeBinary = ((sodaq_gps.getLat() + 90) / 180) * 16777215;
+        LongitudeBinary = ((sodaq_gps.getLon() + 180) / 360) * 16777215;
+        hdopGps = sodaq_gps.getHDOP()*10;
+        altitudeGps = sodaq_gps.getAlt();
 
-    txBuffer[0] = ( LatitudeBinary >> 16 ) & 0xFF;
-    txBuffer[1] = ( LatitudeBinary >> 8 ) & 0xFF;
-    txBuffer[2] = LatitudeBinary & 0xFF;
+        txBuffer[0] = ( LatitudeBinary >> 16 ) & 0xFF;
+        txBuffer[1] = ( LatitudeBinary >> 8 ) & 0xFF;
+        txBuffer[2] = LatitudeBinary & 0xFF;
 
-    txBuffer[3] = ( LongitudeBinary >> 16 ) & 0xFF;
-    txBuffer[4] = ( LongitudeBinary >> 8 ) & 0xFF;
-    txBuffer[5] = LongitudeBinary & 0xFF;
+        txBuffer[3] = ( LongitudeBinary >> 16 ) & 0xFF;
+        txBuffer[4] = ( LongitudeBinary >> 8 ) & 0xFF;
+        txBuffer[5] = LongitudeBinary & 0xFF;
         
-    txBuffer[6] = ( altitudeGps >> 8 ) & 0xFF;
-    txBuffer[7] = altitudeGps & 0xFF;
+        txBuffer[6] = ( altitudeGps >> 8 ) & 0xFF;
+        txBuffer[7] = altitudeGps & 0xFF;
   
-    txBuffer[8] = hdopGps & 0xFF;
+        txBuffer[8] = hdopGps & 0xFF;
+    } else {
+        for (int i=0; i<sizeof(txBuffer); i++) {
+            txBuffer[i] = 0;
+        }
+    }
+        
+}
 
+void sendData() {
+    digitalWrite(LED_BLUE, LOW);
+    buildTXbuffer();
+    ttn.sendBytes( txBuffer, sizeof(txBuffer) );
+    check_frame_ctr();
+    digitalWrite(LED_BLUE, HIGH);
 }
 
 
-// transmit update if moving or if force is true
+// transmit update
 void update(bool force) {
-  double velocity;
-  if (gotGPSfix) {
-    digitalWrite(LED_BLUE, LOW);
-  }
-  if (sodaq_gps.scan(true, 2000)) {
-        //payload = sodaq_gps.getDateTimeString() + ";";
-        //payload += String(sodaq_gps.getLat(), 7) + ";";
-        //payload += String(sodaq_gps.getLon(), 7) + ";";
-        //payload += String(sodaq_gps.getHDOP(), 3) + ";";
-        //payload += String(sodaq_gps.getNumberOfSatellites()) + ";#";
-        velocity = sodaq_gps.getSpeed();      
 
-        // don't send unless we are moving
-        if ( (velocity > 1.0) || force ) {
-            buildTXbuffer();
-            ttn.sendBytes( txBuffer, sizeof(txBuffer) );
-            //debugSerial.println(String("velocity = ") + String(velocity) );
-            check_frame_ctr();
-        } else {
-            debugSerial.println(String("velocity = ") + String(velocity) + String(" (not moving) not transmitting data") );
+    // if we have no fix only a force will transmit 
+    if ( !sodaq_gps.hasFix() ) {
+        if (force) {
+            sendData();
+            debugSerial.println( "Sending empty data (No GPS fix)" );
         }
-        gotGPSfix = true;
-    } else {
-        gotGPSfix = false;
-        payload = "#";
+        return;
     }
-    
-    digitalWrite(LED_BLUE, HIGH);
+
+    // we have a fix, so we also have a speed
+    double velocity = sodaq_gps.getSpeed();      
+
+    // don't send while stationary unless forced
+    if ( (velocity > 1.0) || force ) {
+        debugSerial.println(String("Sending - velocity = ") + String(velocity) );
+        sendData();
+    } else {
+        debugSerial.println(String("velocity = ") + String(velocity) + String(" (not moving) not transmitting data") );
+    } 
 }
 
 void loop()
 {
-  if (millis() > next_update) {
-    update(SEND_WHEN_STATIONARY);
-    next_update = millis() + UPDATE_INTERVAL;
-  }
-
-  // send when button is pressed
-  if (digitalRead(BUTTON) == LOW) {
-    update(true);
-  }
-
-    if (gotGPSfix) {
-      led_pin = LED_GREEN;
-    } else {
-      led_pin = LED_RED;
+    if (millis() > next_update) {
+        update(SEND_WHEN_STATIONARY);
+        next_update = millis() + UPDATE_INTERVAL;
     }
+
+      // send when button is pressed
+    if (digitalRead(BUTTON) == LOW) {
+        update(true);
+    }
+
+    if (sodaq_gps.task()) {
+        digitalWrite(led_pin, LOW);
+    } else {
+        digitalWrite(led_pin, HIGH);
+    }
+
+    if (sodaq_gps.hasFix()) {
+        digitalWrite(LED_RED, HIGH);
+        led_pin = LED_GREEN;
+    } else {
+        digitalWrite(LED_GREEN, HIGH);
+        led_pin = LED_RED;
+    }
+    
     digitalWrite(led_pin, LOW);
     delay (5);
     digitalWrite(led_pin, HIGH);

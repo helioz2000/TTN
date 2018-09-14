@@ -17,8 +17,8 @@
 #include <SPI.h>
 
 #if !defined(DISABLE_INVERT_IQ_ON_RX)
-#error This example requires DISABLE_INVERT_IQ_ON_RX to be set. Update \
-       config.h in the lmic library to set it.
+//#error This example requires DISABLE_INVERT_IQ_ON_RX to be set. Update \
+//       config.h in the lmic library to set it.
 #endif
 
 // How often to send a packet. Note that this sketch bypasses the normal
@@ -117,7 +117,7 @@ static void tx_func (osjob_t* job) {
 
 // application entry point
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   Serial.println("Starting");
   #ifdef VCC_ENABLE
   // For Pinoccio Scout boards

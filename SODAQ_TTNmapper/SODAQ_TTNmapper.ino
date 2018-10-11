@@ -13,22 +13,28 @@
  * transmitted frames, that is, the last frame before shutdown and 
  * first frame after startup.
  */
+
+ /*
+  * !!!! NOTE !!!!
+  * RN2903 MODEL must be RN2903AU version 0.9.7rc7
+  * The RN2903 firmware will determine the reported model. A firmware upgrade may be necessary
+  */
 #include <Arduino.h>
 #include "SodaqUBloxGPS.h"
 #include <TheThingsNetwork.h>
 
 // Set DevAddr, NwkSKey, AppSKey
 
-// device id sodaq_one_01
-const char *devAddr = "26041F0F";
-const char *nwkSKey = "8D41501D44DD536D06FEDCDCF648A267";
-const char *appSKey = "8C9AEECB9F9CDB521B01D8D70594A396";
+/* Erwin's board id sodaq_one_01 */
+const char *devAddr = "26041CE7";
+const char *nwkSKey = "5907CB3D5DBD6CDCDBEE8A1090EBC8C5";
+const char *appSKey = "42CAFF920BD644FECC918823A82DF89F";
 
-/* Adam's board
-const char *devAddr = "260417F7";
-const char *nwkSKey = "709460A79D4186D657CFF59A41D1C5D1";
-const char *appSKey = "628979BA757DA7ED841BCAB966A500B9";
-*/
+/* Adam's board */
+//const char *devAddr = "260417F7";
+//const char *nwkSKey = "709460A79D4186D657CFF59A41D1C5D1";
+//const char *appSKey = "628979BA757DA7ED841BCAB966A500B9";
+
 
 #define UPDATE_INTERVAL 10000UL
 
@@ -39,7 +45,7 @@ String payload;
 #define BUFLEN 50
 char buf[BUFLEN];
 
-uint8_t txBuffer[9];
+uint8_t txBuffer[11];
 uint32_t LatitudeBinary, LongitudeBinary;
 uint16_t altitudeGps;
 uint8_t hdopGps;
@@ -217,18 +223,28 @@ void buildTXbuffer() {
         hdopGps = sodaq_gps.getHDOP()*10;
         altitudeGps = sodaq_gps.getAlt();
 
+        // Latitude
         txBuffer[0] = ( LatitudeBinary >> 16 ) & 0xFF;
         txBuffer[1] = ( LatitudeBinary >> 8 ) & 0xFF;
         txBuffer[2] = LatitudeBinary & 0xFF;
 
+        // Longitude
         txBuffer[3] = ( LongitudeBinary >> 16 ) & 0xFF;
         txBuffer[4] = ( LongitudeBinary >> 8 ) & 0xFF;
         txBuffer[5] = LongitudeBinary & 0xFF;
-        
+
+        // Altitude
         txBuffer[6] = ( altitudeGps >> 8 ) & 0xFF;
         txBuffer[7] = altitudeGps & 0xFF;
-  
+
+        // HDOP
         txBuffer[8] = hdopGps & 0xFF;
+
+        // Speed
+        txBuffer[9] = 0;
+
+        // Battery Voltage
+        txBuffer[10] = 0;
     } else {
         for (int i=0; i<sizeof(txBuffer); i++) {
             txBuffer[i] = 0;
@@ -243,6 +259,8 @@ void sendData() {
     ttn.sendBytes( txBuffer, sizeof(txBuffer) );
     check_frame_ctr();
     digitalWrite(LED_BLUE, HIGH);
+    debugSerial.println("-- STATUS");
+    ttn.showStatus();
 }
 
 /* 

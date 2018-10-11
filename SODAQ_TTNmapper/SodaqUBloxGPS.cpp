@@ -260,7 +260,7 @@ bool Sodaq_UBlox_GPS::parseGPRMC(const String & line)
     String date = getField(line, 9);
 
     String speed = getField(line, 7);
-    _speed = speed.toDouble();
+    _speed = speed.toFloat();
 
     setDateTime(date, time);
 

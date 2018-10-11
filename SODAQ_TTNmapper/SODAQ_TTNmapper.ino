@@ -17,14 +17,18 @@
 #include "SodaqUBloxGPS.h"
 #include <TheThingsNetwork.h>
 
-// Set your DevAddr, NwkSKey, AppSKey and the frequency plan
-//const char *devAddr = "00000000";
-//const char *nwkSKey = "00000000000000000000000000000000";
-//const char *appSKey = "00000000000000000000000000000000";
+// Set DevAddr, NwkSKey, AppSKey
 
+// device id sodaq_one_01
+const char *devAddr = "26041F0F";
+const char *nwkSKey = "8D41501D44DD536D06FEDCDCF648A267";
+const char *appSKey = "8C9AEECB9F9CDB521B01D8D70594A396";
+
+/* Adam's board
 const char *devAddr = "260417F7";
 const char *nwkSKey = "709460A79D4186D657CFF59A41D1C5D1";
 const char *appSKey = "628979BA757DA7ED841BCAB966A500B9";
+*/
 
 #define UPDATE_INTERVAL 10000UL
 
@@ -241,8 +245,11 @@ void sendData() {
     digitalWrite(LED_BLUE, HIGH);
 }
 
+/* 
+ *  transmit update to TTN
+ *  force: TRUE will force a transmission, FALSE will only transmit if we have a GPS fix and we are moving 
+ */
 
-// transmit update
 void update(bool force) {
 
     // if we have no fix only a force will transmit 
@@ -276,6 +283,7 @@ void loop()
       // send when button is pressed
     if (digitalRead(BUTTON) == LOW) {
         update(true);
+        next_update = millis() + UPDATE_INTERVAL;
     }
 
     if (sodaq_gps.task()) {

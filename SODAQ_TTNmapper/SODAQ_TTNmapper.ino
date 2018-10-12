@@ -16,25 +16,31 @@
 
  /*
   * !!!! NOTE !!!!
-  * RN2903 MODEL must be RN2903AU version 0.9.7rc7
-  * The RN2903 firmware will determine the reported model. A firmware upgrade may be necessary
+  * RN2903 firmware must be RN2903AU version 0.9.7rc7
+  * The RN2903 model. A firmware upgrade may be necessary.
   */
+  
 #include <Arduino.h>
 #include "SodaqUBloxGPS.h"
 #include <TheThingsNetwork.h>
 
-// Set DevAddr, NwkSKey, AppSKey
-
-/* Erwin's board id sodaq_one_01 */
+/* Erwin's board id sodaq_one_01
 const char *devAddr = "26041CE7";
 const char *nwkSKey = "5907CB3D5DBD6CDCDBEE8A1090EBC8C5";
 const char *appSKey = "42CAFF920BD644FECC918823A82DF89F";
+*/
 
-/* Adam's board */
-//const char *devAddr = "260417F7";
-//const char *nwkSKey = "709460A79D4186D657CFF59A41D1C5D1";
-//const char *appSKey = "628979BA757DA7ED841BCAB966A500B9";
+/* Erwin's board id sodaq_one_02 */
+const char *devAddr = "26041E61";
+const char *nwkSKey = "2C06B19CEC6EA3F61F7C00105F8A76E8";
+const char *appSKey = "D2557C304858148DFC06E138A6D1D79D";
 
+
+/* Adam's board 
+const char *devAddr = "26041764";
+const char *nwkSKey = "55F86A5DA2D40A7E5D59BFB101EC613B";
+const char *appSKey = "820D7D5039091FE80308BB51D155016C";
+*/
 
 #define UPDATE_INTERVAL 10000UL
 
@@ -45,10 +51,19 @@ String payload;
 #define BUFLEN 50
 char buf[BUFLEN];
 
-uint8_t txBuffer[11];
+#define TXBUFLEN 11
+uint8_t txBuffer[TXBUFLEN];
 uint32_t LatitudeBinary, LongitudeBinary;
 uint16_t altitudeGps;
 uint8_t hdopGps;
+float velocity;
+
+// movement detection
+const int MOVE_DELAY = 3;            // number speed > threshhold detections
+const float MOVE_THRESHOLD = 1.0;    // min speed to detect movement
+bool moving = false;                // TRUE when moving
+int move_count = MOVE_DELAY;
+
 
 // Non volatile storage on RN2903, used as EEPROM in this program.
 const uint16_t NVM_START_ADDR = 0x300;
@@ -222,6 +237,7 @@ void buildTXbuffer() {
         LongitudeBinary = ((sodaq_gps.getLon() + 180) / 360) * 16777215;
         hdopGps = sodaq_gps.getHDOP()*10;
         altitudeGps = sodaq_gps.getAlt();
+        velocity = sodaq_gps.getSpeed();  
 
         // Latitude
         txBuffer[0] = ( LatitudeBinary >> 16 ) & 0xFF;
@@ -241,16 +257,15 @@ void buildTXbuffer() {
         txBuffer[8] = hdopGps & 0xFF;
 
         // Speed
-        txBuffer[9] = 0;
-
-        // Battery Voltage
-        txBuffer[10] = 0;
+        txBuffer[9] = (int)velocity;    
     } else {
         for (int i=0; i<sizeof(txBuffer); i++) {
             txBuffer[i] = 0;
         }
     }
-        
+    
+    // Battery Voltage
+    txBuffer[10] = (getBatteryVoltage() - 2500) / 10; 
 }
 
 void sendData() {
@@ -263,11 +278,50 @@ void sendData() {
     ttn.showStatus();
 }
 
+/*
+ * Check speed and set "moving" if we are on the move
+ */
+void evaluate_velocity() {
+  // no fix = no speed readout
+  if (!sodaq_gps.hasFix()) {
+    moving = false;
+    return;
+  }
+  // we have a fix, lets check the speed
+  double spd = sodaq_gps.getSpeed();
+  if (spd >= MOVE_THRESHOLD) {
+    if (move_count > 0) {
+      move_count--;
+    } else {
+      moving = true;
+    }
+  } else {
+    move_count = MOVE_DELAY;
+    moving = false;
+  }
+}
+
+
+#define ADC_AREF 3.3f
+#define BATVOLT_R1 2.0f // One v1
+#define BATVOLT_R2 2.0f // One v1
+//#define BATVOLT_R1 4.7f // One v2/3/4   R18 = 4.7M
+//#define BATVOLT_R2 10.0f // One v2/3/4  R19 = 10M
+#define BATVOLT_PIN BAT_VOLT    //AIN5, pin 10 on ATSAMD21
+
+uint16_t getBatteryVoltage()
+{
+    uint16_t voltage = (uint16_t)((ADC_AREF / 1.023) * (BATVOLT_R1 + BATVOLT_R2) / BATVOLT_R2 * (float)analogRead(BATVOLT_PIN));
+
+    return voltage;
+}
+
+
+
 /* 
  *  transmit update to TTN
  *  force: TRUE will force a transmission, FALSE will only transmit if we have a GPS fix and we are moving 
  */
-
 void update(bool force) {
 
     // if we have no fix only a force will transmit 
@@ -280,14 +334,14 @@ void update(bool force) {
     }
 
     // we have a fix, so we also have a speed
-    double velocity = sodaq_gps.getSpeed();      
+    double spd = sodaq_gps.getSpeed();      
 
     // don't send while stationary unless forced
-    if ( (velocity > 1.0) || force ) {
-        debugSerial.println(String("Sending - velocity = ") + String(velocity) );
+    if ( moving || force ) {
+        debugSerial.println(String("Sending - velocity = ") + String(spd) );
         sendData();
     } else {
-        debugSerial.println(String("velocity = ") + String(velocity) + String(" (not moving) not transmitting data") );
+        debugSerial.println(String("velocity = ") + String(spd) + String(" (not moving) not transmitting data") );
     } 
 }
 
@@ -304,8 +358,9 @@ void loop()
         next_update = millis() + UPDATE_INTERVAL;
     }
 
-    if (sodaq_gps.task()) {
+    if (sodaq_gps.task() == true) {
         digitalWrite(led_pin, LOW);
+        evaluate_velocity();
     } else {
         digitalWrite(led_pin, HIGH);
     }
@@ -318,9 +373,7 @@ void loop()
         led_pin = LED_RED;
     }
     
-    digitalWrite(led_pin, LOW);
-    delay (5);
-    digitalWrite(led_pin, HIGH);
-    delay(495);
+    //digitalWrite(led_pin, LOW);
+    //delay(495);
   
 }

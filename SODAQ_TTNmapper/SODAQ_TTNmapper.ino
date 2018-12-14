@@ -24,17 +24,17 @@
 #include "SodaqUBloxGPS.h"
 #include <TheThingsNetwork.h>
 
-/* Erwin's board id sodaq_one_01
-const char *devAddr = "26041CE7";
-const char *nwkSKey = "5907CB3D5DBD6CDCDBEE8A1090EBC8C5";
-const char *appSKey = "42CAFF920BD644FECC918823A82DF89F";
-*/
+/* Erwin's board id sodaq_one_01 */
+// device EUI: 0004A30B001A26CA
+const char *devAddr = "26061E73";
+const char *nwkSKey = "0A92345A41BD5211A2D0F97BE661A6D7";
+const char *appSKey = "7E1D1F90FC1CA4D8B1B2D74258815FB0";
 
-/* Erwin's board id sodaq_one_02 */
+/* Erwin's board id sodaq_one_02 
 const char *devAddr = "26041E61";
 const char *nwkSKey = "2C06B19CEC6EA3F61F7C00105F8A76E8";
 const char *appSKey = "D2557C304858148DFC06E138A6D1D79D";
-
+*/
 
 /* Adam's board 
 const char *devAddr = "26041764";

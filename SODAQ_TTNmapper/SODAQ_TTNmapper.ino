@@ -19,6 +19,38 @@
   * RN2903 firmware must be RN2903AU version 0.9.7rc7
   * The RN2903 model. A firmware upgrade may be necessary.
   */
+
+/*
+ * example payload:
+ * 40131B0426000F0001F81CE8CE69A5F622BA09755E0B06DC
+ */
+
+/* TTN application function decoder:
+ *  required in TTNmapper application to decode the message from this logger
+function Decoder(bytes, port) {
+  // Decode an uplink message from a buffer
+  // (array) of bytes to an object of fields.
+  var decoded = {};
+
+  // if (port === 1) decoded.led = bytes[0];
+decoded.latitude = ((bytes[0]<<16)>>>0) + ((bytes[1]>>8)>>>0) + bytes[2];
+  decoded.latitude = (decoded.latitude / 16777215.0 * 180) - 90;
+  decoded.longitude = ((bytes[3]<<16)>>>0) + ((bytes[4]<<8)>>>0) + bytes[5];
+  decoded.longitude = (decoded.longitude / 16777215.0 * 360) - 180;
+  var altValue = ((bytes[6]<<8)>>>0) + bytes[7];
+  var sign = bytes[6] & (1 << 7);
+  if(sign)
+  {
+    decoded.altitude = 0xFFFF0000 | altValue;
+  }
+  else
+  {
+    decoded.altitude = altValue;
+  }
+  decoded.hdop = bytes[8] / 10;
+  return decoded;
+}
+*/
   
 #include <Arduino.h>
 #include "SodaqUBloxGPS.h"
@@ -26,9 +58,11 @@
 
 /* Erwin's board id sodaq_one_01 */
 // device EUI: 0004A30B001A26CA
-const char *devAddr = "26061E73";
-const char *nwkSKey = "0A92345A41BD5211A2D0F97BE661A6D7";
-const char *appSKey = "7E1D1F90FC1CA4D8B1B2D74258815FB0";
+
+// ABP details
+const char *devAddr = "26041B13";
+const char *nwkSKey = "31B51E36443F398B11E31018BF5F7E95";
+const char *appSKey = "1F762E517C4C0CE74EED902260ECB1A7";
 
 /* Erwin's board id sodaq_one_02 
 const char *devAddr = "26041E61";
@@ -110,6 +144,9 @@ void setup()
     debugSerial.println("-- PERSONALIZE");
     ttn.personalize(devAddr, nwkSKey, appSKey);
 
+    //debugSerial.println("-- JOIN");
+    //ttn.join(appEui, appKey);
+
     debugSerial.println("-- STATUS");
     ttn.showStatus();
 
@@ -130,6 +167,7 @@ void setup()
     //debugSerial.print("-- Waiting for GPS fix ... ");
     sodaq_gps.init(GPS_ENABLE);
     sodaq_gps.on();
+  
   /*
   digitalWrite(LED_RED, LOW);
   if (sodaq_gps.scan(true, 60000)) {
@@ -233,6 +271,9 @@ void set_frame_ctr() {
 
 void buildTXbuffer() {
     if (sodaq_gps.hasFix()) {
+        //debugSerial.println(sodaq_gps.getLat());
+        //debugSerial.println(sodaq_gps.getLon());
+        //debugSerial.println(sodaq_gps.getAlt());
         LatitudeBinary = ((sodaq_gps.getLat() + 90) / 180) * 16777215;
         LongitudeBinary = ((sodaq_gps.getLon() + 180) / 360) * 16777215;
         hdopGps = sodaq_gps.getHDOP()*10;
@@ -266,6 +307,14 @@ void buildTXbuffer() {
     
     // Battery Voltage
     txBuffer[10] = (getBatteryVoltage() - 2500) / 10; 
+
+    /*
+    debugSerial.println();
+    for(int i=0; i<11; i++) {
+      debugSerial.print(txBuffer[i], HEX); 
+    }
+    debugSerial.println();
+    */
 }
 
 void sendData() {

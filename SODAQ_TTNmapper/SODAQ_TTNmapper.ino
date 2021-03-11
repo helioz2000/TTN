@@ -56,13 +56,19 @@ decoded.latitude = ((bytes[0]<<16)>>>0) + ((bytes[1]>>8)>>>0) + bytes[2];
 #include "SodaqUBloxGPS.h"
 #include <TheThingsNetwork.h>
 
-/* Erwin's board id sodaq_one_01 */
+/* Erwin's board id sodaq_one_1 */
 // device EUI: 0004A30B001A26CA
-
 // ABP details
-const char *devAddr = "26041B13";
-const char *nwkSKey = "31B51E36443F398B11E31018BF5F7E95";
-const char *appSKey = "1F762E517C4C0CE74EED902260ECB1A7";
+//const char *devAddr = "26041B13";
+//const char *nwkSKey = "31B51E36443F398B11E31018BF5F7E95";
+//const char *appSKey = "1F762E517C4C0CE74EED902260ECB1A7";
+
+/* Erwin's board id sodaq_one_2 */
+// device EUI: 0004A30B001A271C
+// ABP details
+const char *devAddr = "2604102F";
+const char *nwkSKey = "8D440FCDFD5A1A3FA79B4D1DF651485E";
+const char *appSKey = "A794DB9234E2E712EAFA771BF91F202C";
 
 /* Erwin's board id sodaq_one_02 
 const char *devAddr = "26041E61";

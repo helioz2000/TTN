@@ -21,5 +21,6 @@ decoded.latitude = ((bytes[0]<<16)>>>0) + ((bytes[1]<<8)>>>0) + bytes[2];
     decoded.altitude = altValue;
   }
   decoded.hdop = bytes[8] / 10;
+  decoded.speed = bytes[9];
   return decoded;
 }

@@ -59,28 +59,24 @@ decoded.latitude = ((bytes[0]<<16)>>>0) + ((bytes[1]>>8)>>>0) + bytes[2];
 /* Erwin's board id sodaq_one_1 */
 // device EUI: 0004A30B001A26CA
 // ABP details for asia-se handler registration
-//const char *devAddr = "26041B13";
-//const char *nwkSKey = "31B51E36443F398B11E31018BF5F7E95";
-//const char *appSKey = "1F762E517C4C0CE74EED902260ECB1A7";
+const char *devAddr = "26041B13";
+const char *nwkSKey = "31B51E36443F398B11E31018BF5F7E95";
+const char *appSKey = "1F762E517C4C0CE74EED902260ECB1A7";
 
 /* Erwin's board id sodaq_one_2 */
 // device EUI: 0004A30B001A271C
 // ABP details for meshed AU handle registration
-const char *devAddr = "260012F6";
-const char *nwkSKey = "B94B2A32170E90E2E50E920D6CE32A8C";
-const char *appSKey = "1F09ACF5332A14B8C258388277BB8234";
-
-/* Erwin's board id sodaq_one_02 
-const char *devAddr = "26041E61";
-const char *nwkSKey = "2C06B19CEC6EA3F61F7C00105F8A76E8";
-const char *appSKey = "D2557C304858148DFC06E138A6D1D79D";
-*/
+//const char *devAddr = "260012F6";
+//const char *nwkSKey = "B94B2A32170E90E2E50E920D6CE32A8C";
+//const char *appSKey = "1F09ACF5332A14B8C258388277BB8234";
 
 /* Adam's board 
 const char *devAddr = "26041764";
 const char *nwkSKey = "55F86A5DA2D40A7E5D59BFB101EC613B";
 const char *appSKey = "820D7D5039091FE80308BB51D155016C";
 */
+
+#define KTS_TO_KPH 1.852    // conversion factor for velocity readout
 
 #define UPDATE_INTERVAL 10000UL
 
@@ -96,14 +92,13 @@ uint8_t txBuffer[TXBUFLEN];
 uint32_t LatitudeBinary, LongitudeBinary;
 uint16_t altitudeGps;
 uint8_t hdopGps;
-float velocity;
+float velocity;   // in km/h
 
 // movement detection
 const int MOVE_DELAY = 3;            // number speed > threshhold detections
 const float MOVE_THRESHOLD = 1.0;    // min speed to detect movement
 bool moving = false;                // TRUE when moving
 int move_count = MOVE_DELAY;
-
 
 // Non volatile storage on RN2903, used as EEPROM in this program.
 const uint16_t NVM_START_ADDR = 0x300;
@@ -284,7 +279,7 @@ void buildTXbuffer() {
         LongitudeBinary = ((sodaq_gps.getLon() + 180) / 360) * 16777215;
         hdopGps = sodaq_gps.getHDOP()*10;
         altitudeGps = sodaq_gps.getAlt();
-        velocity = sodaq_gps.getSpeed();  
+        velocity = sodaq_gps.getSpeed() * KTS_TO_KPH;  
 
         // Latitude
         txBuffer[0] = ( LatitudeBinary >> 16 ) & 0xFF;
